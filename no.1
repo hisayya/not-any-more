@@ -1,0 +1,1039 @@
+comboxSTR=["做多","做空"]
+DR_M=comboxSTR[DR]
+from datetime import datetime
+global init_Balance,FSTTime,M,now_time,account1
+exchange.SetContractType("swap")
+account1=exchange.GetAccount()
+init_Balance=account1["Balance"]
+FSTTime = _D()
+Log('策略开始时间为:',FSTTime)
+firsthour=FSTTime[10:]
+firsthour_spt=firsthour.split(':')
+now_time = datetime.now()
+now_time = now_time.strftime("%Y-%m-%d %H:%M:%S")
+now_time = datetime.strptime(now_time, r"%Y-%m-%d %H:%M:%S")
+
+
+def CancelPendingOrders():
+    orders = _C(exchanges[i].GetOrders)
+    if len(orders)>0:
+        for j in range(len(orders)):
+            exchanges[i].CancelOrder(orders[j].Id, orders[j])
+            j=j+1
+
+
+
+def accuracy():  
+    global BV1,CV1
+    exchanges[i].SetContractType("swap")
+    currency1=_C(exchanges[i].GetCurrency)
+    ticker1=_C(exchanges[i].GetTicker)
+    all_BV1list=['ALICE_USDT','DODO_USDT','UNFI_USDT','LITU_USDT','ZEN_USDT','FIL_USDT','AAVE_USDT','KSM_USDT','EGLD_USDT','TRB_USDT','CRV_USDT',
+              'BAL_USDT','DOT_USDT','SNX_USDT','WAVES_USDT','RLC_USDT','BAND_USDT','KAVA_USDT','SXP_USDT','OMG_USDT','ZRX_USDT','ALGO_USDT',
+              'THETA_USDT','QTUM_USDT','BAT_USDT','IOTA_USDT','ONT_USDT','XTZ_USDT','EOS_USDT','XRP_USDT','ICP_USDT','NEO_USDT','ATOM_USDT',
+              'BNB_USDT','LINK_USDT','ETC_USDT','BNB_USDT','YFII_USDT','YFI_USDT','DEFI_USDT','MKR_USDT','COMP_USDT','ZEC_USDT','DASH_USDT',
+                     'XMR_USDT','LTC_USDT','BCH_USDT','ETH_USDT','BTC_USDT']
+    list1=['ALICE_USDT','DODO_USDT','UNFI_USDT','LITU_USDT','ZEN_USDT','FIL_USDT','AAVE_USDT','KSM_USDT','EGLD_USDT','TRB_USDT','CRV_USDT',
+              'BAL_USDT','DOT_USDT','SNX_USDT','WAVES_USDT','RLC_USDT','BAND_USDT','KAVA_USDT','SXP_USDT','OMG_USDT','ZRX_USDT','ALGO_USDT',
+              'THETA_USDT','QTUM_USDT','BAT_USDT','IOTA_USDT','ONT_USDT','XTZ_USDT','EOS_USDT','XRP_USDT']
+    list2=['ICP_USDT','NEO_USDT','ATOM_USDT','BNB_USDT','LINK_USDT','ETC_USDT','BNB_USDT','BNB_BUSD']
+    list3=['YFII_USDT','YFI_USDT','DEFI_USDT','MKR_USDT','COMP_USDT','ZEC_USDT','DASH_USDT','XMR_USDT','LTC_USDT','BCH_USDT','ETH_USDT','BTC_USDT','BTC_BUSD','ETH_BUSD']
+    if currency1 in list1:
+        BV1=1
+    if currency1 in list2:
+        BV1=2
+    if currency1 in list3:
+        BV1=3
+    if currency1 not in all_BV1list:
+        BV1=0
+    #价格精度计算
+    if currency1!='YFI_USDT':
+        RR1=str(ticker1["Last"])
+        content1=RR1.split(".")[-1]
+        weishu1=len(content1)
+        CV1=weishu1
+    else:
+        CV1=0
+    global n1
+    n1=round(P/ticker1["Last"],BV1)
+    if n1==0:
+        n1=n1+10**(-BV1)
+
+def trade():
+    global M
+    exchanges[i].SetMarginLevel(M)
+    exchanges[i].SetContractType("swap")
+    currency1=_C(exchanges[i].GetCurrency)
+    ticker1=_C(exchanges[i].GetTicker)
+    position1=_C(exchanges[i].GetPosition)
+    account1=_C(exchanges[i].GetAccount)
+    global walletbalance
+    walletbalance=account1["Info"]["assets"][1]["crossWalletBalance"] 
+    if len(position1)==0:
+        if DR_M=='做多':
+            exchanges[i].SetDirection("buy")
+            exchanges[i].Buy(-1, n1, "开多")
+            Log(currency1,'开仓做多')
+            if not no:
+                exchanges[i].SetDirection("sell")
+                exchanges[i].Sell(-1, n1, "开空")
+                Log(currency1,'开仓做空')
+        if DR_M=='做空':
+            exchanges[i].SetDirection("sell")
+            exchanges[i].Sell(-1, n1, "开空")
+            Log(currency1,'开仓做空')
+            if not no:
+                exchanges[i].SetDirection("buy")
+                exchanges[i].Buy(-1, n1, "开多")
+                Log(currency1,'开仓做多')
+    if len(position1)==1:
+        if not no:
+            if position1[0]["Type"]==1:
+                exchanges[i].SetDirection("buy")
+                exchanges[i].Buy(-1, n1, "开多")
+                Log(currency1,'开仓做多')
+            if position1[0]["Type"]==0:
+                exchanges[i].SetDirection("sell")
+                exchanges[i].Sell(-1, n1, "开空")
+                Log(currency1,'开仓做空')
+        if no:
+            if DR_M=='做多':
+                ticker1=_C(exchanges[i].GetTicker)
+                position1=_C(exchanges[i].GetPosition)
+                if len(position1)>0 and position1[0]["Type"]==0:
+                    #判断持仓数量对于止盈点和加仓间隔的影响，K为补仓衰减系数，J为止盈衰减系数
+                    r=exchanges[i].GetRecords(PERIOD_M1)
+                    r2=exchanges[i].GetRecords(PERIOD_M15)
+                    if r and len(r)>100 and r2 and len(r2)>20:
+                        EMA100=TA.EMA(r,100)
+                        EMA7=TA.EMA(r,7)
+                        EMA20=TA.EMA(r,20)
+                        close0_p=r[len(r)-1].Close
+                        S1= close0_p<EMA20[-1] and EMA7[-2]<EMA20[-2]<EMA100[-2] and EMA7[-3]<EMA20[-3]<EMA100[-3] #单边下跌
+                        open0_p15=r2[len(r2)-1].Close
+                        Green=ticker1["Last"]<0.998*open0_p15 #15min出现阴线
+                        if close0_p>EMA100[-1]:
+                            K=0.6*E+(0.00025*position1[0].Amount/n1) 
+                            J=1.3*fp+(0.00003*position1[0].Amount/n1) 
+                        if close0_p<=EMA100[-1]:
+                            K=0.6*E+(0.00025*position1[0].Amount/n1) 
+                            J=1.3*fp-(0.00003*position1[0].Amount/n1) 
+                        if fk:
+                            TA1=(position1[0].Amount*ticker1["Last"])/M>init_Balance/3*bb*len(exchanges)
+                            TB1=(position1[0].Amount*ticker1["Last"])/M>init_Balance/2*bb*len(exchanges)
+                            TC1=(position1[0].Amount*ticker1["Last"])/M>init_Balance/1.5*bb*len(exchanges)
+                            if not TC1:
+                                if TA1 and not TB1 :
+                                    add=round((1-K)*ticker1["Sell"],CV1) if K<0.007 else round(0.993*ticker1["Sell"],CV1)
+                                    pt=round((1+J)*position1[0].Price,CV1) if J>0.001 else round(1.001*position1[0].Price,CV1)
+                                    if round(0.5*(V-1)*position1[0].Amount)<n1:
+                                        B1=n1 
+                                    else: 
+                                        B1=round(0.5*(V-1)*position1[0].Amount,BV1)
+                                if TA1 and TB1:
+                                    add=round((1-K)*ticker1["Sell"],CV1) if K<0.007 else round(0.993*ticker1["Sell"],CV1)
+                                    pt=round((1+J)*position1[0].Price,CV1) if J>0.001 else round(1.001*position1[0].Price,CV1)
+                                    B1=n1
+                                else:
+                                    add=round((1-K)*ticker1["Sell"],CV1) if K<0.007 else round(0.993*ticker1["Sell"],CV1)
+                                    pt=round((1+J)*position1[0].Price,CV1) if J>0.001 else round(1.001*position1[0].Price,CV1)
+                                    B1=n1 if round((V-1)*position1[0].Amount)<n1 else round((V-1)*position1[0].Amount,BV1)
+                                orders=_C(exchanges[i].GetOrders)
+                                if not S1:
+                                    if len(orders)==0:
+                                        exchanges[i].SetDirection("buy")
+                                        exchanges[i].Buy(add,B1)
+                                        exchanges[i].SetDirection("closebuy")
+                                        exchanges[i].Sell(pt,position1[0].Amount)
+                                    if len(orders)==1:
+                                        needle_protecting_records()
+                                        if orders[0]["Type"]==0:
+                                            Log(currency1,'止盈多单成交')
+                                            CancelPendingOrders()
+                                            LogProfit(float(walletbalance)+float(unrealizedProfit))
+                                        if orders[0]["Type"]==1:
+                                            Log(currency1,'补仓多单成交')
+                                            CancelPendingOrders()
+                        if not fk:
+                            add=round((1-K)*ticker1["Sell"],CV1) if K<0.007 else round(0.993*ticker1["Sell"],CV1)
+                            pt=round((1+J)*position1[0].Price,CV1) if J>0.001 else round(1.001*position1[0].Price,CV1)
+                            B1=n1 if round((V-1)*position1[0].Amount)<n1 else round((V-1)*position1[0].Amount,BV1)
+                        orders=_C(exchanges[i].GetOrders)
+                        if not S1 :
+                            if len(orders)==0:
+                                exchanges[i].SetDirection("buy")
+                                exchanges[i].Buy(add,B1)
+                                exchanges[i].SetDirection("closebuy")
+                                exchanges[i].Sell(pt,position1[0].Amount)
+                            if len(orders)==1:
+                                needle_protecting_records()
+                                if orders[0]["Type"]==0:
+                                    Log(currency1,'止盈多单成交')
+                                    CancelPendingOrders()
+                                    LogProfit(float(walletbalance)+float(unrealizedProfit))
+                                if orders[0]["Type"]==1:
+                                    Log(currency1,'补仓多单成交')
+                                    CancelPendingOrders()
+                              
+                
+            if DR_M=='做空':     
+                ticker1=_C(exchanges[i].GetTicker)
+                position1=_C(exchanges[i].GetPosition)
+                if len(position1)>0 and position1[0]["Type"]==1:
+                                  
+                    r=exchanges[i].GetRecords(PERIOD_M1)
+                    r2=exchanges[i].GetRecords(PERIOD_M15)
+                    if r and len(r)>100 and r2 and len(r2)>20:
+                        EMA100=TA.EMA(r,100)
+                        EMA7=TA.EMA(r,7)
+                        EMA20=TA.EMA(r,20)
+                        close0_p=r[len(r)-1].Close
+                        L1= close0_p>EMA20[-1] and EMA7[-2]>EMA20[-2]>EMA100[-2] and EMA7[-3]>EMA20[-3]>EMA100[-3] #单边上涨
+                        open0_p15=r2[len(r2)-1].Close
+                        Red=ticker1["Last"]>1.01*open0_p15 #15min出现阳线
+                        if close0_p>EMA100[-1]:
+                            K=0.6*E+(0.00025*position1[0].Amount/n1) 
+                            J=1.3*fp-(0.00003*position1[0].Amount/n1) 
+                        if close0_p<=EMA100[-1]:
+                            K=0.6*E+(0.00025*position1[0].Amount/n1) 
+                            J=1.3*fp+(0.00003*position1[0].Amount/n1) 
+                        if fk:
+                            TA1=(position1[0].Amount*ticker1["Last"])/M>init_Balance/3*bb*len(exchanges)
+                            TB1=(position1[0].Amount*ticker1["Last"])/M>init_Balance/2*bb*len(exchanges)
+                            TC1=(position1[0].Amount*ticker1["Last"])/M>init_Balance/1.5*bb*len(exchanges)
+                            if not TC1:
+                                if TA1 and not TB1 :
+                                    add2=round((1+1.2*K)*ticker1["Sell"],CV1) if K<0.007 else round(1.007*ticker1["Sell"],CV1)
+                                    pt2=round((1-1.2*J)*position1[0].Price,CV1) if J>0.0012 else round(0.9988*position1[0].Price,CV1)
+                                    if round(0.5*(V-1)*position1[0].Amount)<n1:
+                                        B2=n1 
+                                    else: 
+                                        B2=round(0.5*(V-1)*position1[0].Amount,BV1)
+                                if TA1 and TB1:
+                                    add2=round((1+1.2*K)*ticker1["Sell"],CV1) if K<0.007 else round(1.007*ticker1["Sell"],CV1)
+                                    pt2=round((1-1.2*J)*position1[0].Price,CV1) if J>0.0012 else round(0.9988*position1[0].Price,CV1)
+                                    B2=n1
+                                else:
+                                    add2=round((1+1.2*K)*ticker1["Sell"],CV1) if K<0.007 else round(1.007*ticker1["Sell"],CV1)
+                                    pt2=round((1-1.2*J)*position1[0].Price,CV1) if J>0.0012 else round(0.9988*position1[0].Price,CV1)
+                                    B2=n1 if round((V-1)*position1[0].Amount)<n1 else round((V-1)*position1[0].Amount,BV1)
+                                orders=_C(exchanges[i].GetOrders)
+                                if not L1:
+                                    if len(orders)==0:
+                                        exchanges[i].SetDirection("sell")
+                                        exchanges[i].Sell(add2,B2)                         
+                                        exchanges[i].SetDirection('closesell')
+                                        exchanges[i].Buy(pt2,position1[1].Amount)
+                                    if len(orders)==1:
+                                        needle_protecting_records()
+                                        orders=_C(exchanges[i].GetOrders)
+                                        if orders[0]["Type"]==1:
+                                            Log(currency1,'止盈空单成交')
+                                            CancelPendingOrders()
+                                            LogProfit(float(walletbalance)+float(unrealizedProfit))
+                                        if orders[0]["Type"]==0:
+                                            Log(currency1,'补仓空单成交')
+                                            CancelPendingOrders()
+                        if not fk:
+                            add2=round((1+1.2*K)*ticker1["Sell"],CV1) if K<0.007 else round(1.007*ticker1["Sell"],CV1)
+                            pt2=round((1-1.2*J)*position1[0].Price,CV1) if J>0.0012 else round(0.9988*position1[0].Price,CV1)
+                            B2=n1 if round((V-1)*position1[0].Amount)<n1 else round((V-1)*position1[0].Amount,BV1)
+                        orders=_C(exchanges[i].GetOrders)
+                        if not L1:
+                            if len(orders)==0:
+                                exchanges[i].SetDirection("sell")
+                                exchanges[i].Sell(add2,B2)                         
+                                exchanges[i].SetDirection('closesell')
+                                exchanges[i].Buy(pt2,position1[1].Amount)
+                            if len(orders)==1:
+                                needle_protecting_records()
+                                orders=_C(exchanges[i].GetOrders)
+                                if orders[0]["Type"]==1:
+                                    Log(currency1,'止盈空单成交')
+                                    CancelPendingOrders()
+                                    LogProfit(float(walletbalance)+float(unrealizedProfit))
+                                if orders[0]["Type"]==0:
+                                    Log(currency1,'补仓空单成交')
+                                    CancelPendingOrders()
+      
+                    
+                    
+    if len(position1)==2 and not no:
+        ticker1=_C(exchanges[i].GetTicker)
+        position1=_C(exchanges[i].GetPosition)
+        if position1[0]["Type"]==0 and position1[1]["Type"]==1:
+            #多单模块
+            r=exchanges[i].GetRecords(PERIOD_M1)
+            r2=exchanges[i].GetRecords(PERIOD_M15)
+            if r and len(r)>100 and r2 and len(r2)>20:
+                EMA100=TA.EMA(r,100)
+                EMA7=TA.EMA(r,7)
+                EMA20=TA.EMA(r,20)
+                close0_p=r[len(r)-1].Close
+                S1= close0_p<EMA20[-1] and EMA7[-2]<EMA20[-2]<EMA100[-2] and EMA7[-3]<EMA20[-3]<EMA100[-3] #单边下跌
+                L1= close0_p>EMA20[-1] and EMA7[-2]>EMA20[-2]>EMA100[-2] and EMA7[-3]>EMA20[-3]>EMA100[-3] #单边上涨
+                open0_p15=r2[len(r2)-1].Close
+                Red=ticker1["Last"]>1.002*open0_p15 #15min出现阳线
+                Green=ticker1["Last"]<0.998*open0_p15 #15min出现阴线
+                if close0_p>EMA100[-1]:
+                    K1=0.6*E+(0.00025*position1[0].Amount/n1) 
+                    J1=1.3*fp+(0.00003*position1[0].Amount/n1) 
+                    K2=0.6*E+(0.00025*position1[1].Amount/n1) 
+                    J2=1.3*fp-(0.00003*position1[1].Amount/n1) 
+                if close0_p<=EMA100[-1]:
+                    K1=0.6*E+(0.00025*position1[0].Amount/n1) 
+                    J1=1.3*fp-(0.00003*position1[0].Amount/n1) 
+                    K2=0.6*E+(0.00025*position1[1].Amount/n1) 
+                    J2=1.3*fp+(0.00003*position1[1].Amount/n1) 
+                    
+                if fk:
+                    if DR_M=='做多':
+                        TA1=(position1[0].Amount*ticker1["Last"])/M>init_Balance/3*bb*len(exchanges)
+                        TB1=(position1[0].Amount*ticker1["Last"])/M>init_Balance/2*bb*len(exchanges)
+                        TC1=(position1[0].Amount*ticker1["Last"])/M>init_Balance/1.5*bb*len(exchanges)
+                        if not TC1 :
+                            if TA1 and not TB1 :
+                                add=round((1-K1)*ticker1["Sell"],CV1) if K1<0.007 else round(0.993*ticker1["Sell"],CV1)
+                                pt=round((1+J1)*position1[0].Price,CV1) if J1>0.001 else round(1.001*position1[0].Price,CV1)
+                                if round(0.5*(V-1)*position1[0].Amount)<n1:
+                                    B1=n1 
+                                else: 
+                                    B1=round(0.5*(V-1)*position1[0].Amount,BV1)
+                            if TA1 and TB1:
+                                add=round((1-K1)*ticker1["Sell"],CV1) if K1<0.007 else round(0.993*ticker1["Sell"],CV1)
+                                pt=round((1+J1)*position1[0].Price,CV1) if J1>0.001 else round(1.001*position1[0].Price,CV1)
+                                B1=n1
+                            else:
+                                add=round((1-K1)*ticker1["Sell"],CV1) if K1<0.007 else round(0.993*ticker1["Sell"],CV1)
+                                pt=round((1+J1)*position1[0].Price,CV1) if J1>0.001 else round(1.001*position1[0].Price,CV1)
+                                B1=n1 if round((V-1)*position1[0].Amount)<n1 else round((V-1)*position1[0].Amount,BV1)
+                            #查询订单
+                            orders=_C(exchanges[i].GetOrders)
+                            if len(orders)==0:
+                                if DR_M=='做多':
+                                    if not S1:
+                                        exchanges[i].SetDirection("buy")
+                                        exchanges[i].Buy(add,B1)
+                                        exchanges[i].SetDirection("closebuy")
+                                        exchanges[i].Sell(pt,position1[0].Amount)
+                                
+                            if len(orders)==1:
+                                needle_protecting_records()
+                                if DR_M=='做多':
+                                    orders=_C(exchanges[i].GetOrders)
+                                    if orders[0]["Type"]==0:
+                                        Log(currency1,'止盈多单成交')
+                                        CancelPendingOrders()
+                                        if Long1 or Long15:
+                                            Log(currency1,'单边上涨,该币种的空头对冲模块已经停止#FF0000')
+                                        else:
+                                            short_add()
+                                        LogProfit(float(walletbalance)+float(unrealizedProfit))
+                                    if orders[0]["Type"]==1:
+                                        Log(currency1,'补仓多单成交')
+                                        CancelPendingOrders()
+                                        short_close()
+
+                    if DR_M=='做空':
+                        TA2=(position1[1].Amount*ticker1["Last"])/M>init_Balance/3*bb*len(exchanges)
+                        TB2=(position1[1].Amount*ticker1["Last"])/M>init_Balance/2*bb*len(exchanges)
+                        TC2=(position1[1].Amount*ticker1["Last"])/M>init_Balance/1.5*bb*len(exchanges)
+                        if not TC2:
+                            if TA2 and not TB2:
+                                add2=round((1+1.2*K2)*ticker1["Sell"],CV1) if K2<0.007 else round(1.007*ticker1["Sell"],CV1)
+                                pt2=round((1-1.2*J2)*position1[1].Price,CV1) if J2>0.0012 else round(0.9988*position1[1].Price,CV1)
+                                if round(0.5*(V-1)*position1[1].Amount)<n1:
+                                    B2=n1 
+                                else: 
+                                    B2=round(0.5*(V-1)*position1[1].Amount,BV1)
+                            if TA2 and TB2:
+                                add2=round((1+1.2*K2)*ticker1["Sell"],CV1) if K2<0.007 else round(1.007*ticker1["Sell"],CV1)
+                                pt2=round((1-1.2*J2)*position1[1].Price,CV1) if J2>0.0012 else round(0.9988*position1[1].Price,CV1)
+                                B2=n1
+                            else:
+                                add2=round((1+1.2*K2)*ticker1["Sell"],CV1) if K2<0.007 else round(1.007*ticker1["Sell"],CV1)
+                                pt2=round((1-1.2*J2)*position1[1].Price,CV1) if J2>0.0012 else round(0.9988*position1[1].Price,CV1)
+                                B2=n1 if round((V-1)*position1[1].Amount)<n1 else round((V-1)*position1[1].Amount,BV1)
+                            #查询订单
+                            orders=_C(exchanges[i].GetOrders)
+                            if len(orders)==0:
+                                if DR_M=='做空':  
+                                    if not L1:
+                                        exchanges[i].SetDirection("sell")
+                                        exchanges[i].Sell(add2,B2)                         
+                                        exchanges[i].SetDirection('closesell')
+                                        exchanges[i].Buy(pt2,position1[1].Amount)
+                            if len(orders)==1:
+                                needle_protecting_records()
+                                if DR_M=='做空':
+                                    orders=_C(exchanges[i].GetOrders)
+                                    if orders[0]["Type"]==1:
+                                        Log(currency1,'止盈空单成交')
+                                        CancelPendingOrders()
+                                        if Short1 or Short15:
+                                            Log(currency1,'单边下跌,该币种的多头对冲模块已经停止#FF0000')
+                                        else:
+                                            long_add()
+                                        LogProfit(float(walletbalance)+float(unrealizedProfit))
+                                    if orders[0]["Type"]==0:
+                                        Log(currency1,'补仓空单成交')
+                                        CancelPendingOrders()
+                                        long_close()
+                    
+                if not fk:  
+                    add=round((1-K1)*ticker1["Sell"],CV1) if K1<0.007 else round(0.993*ticker1["Sell"],CV1)
+                    pt=round((1+J1)*position1[0].Price,CV1) if J1>0.0012 else round(1.0012*position1[0].Price,CV1)
+                    add2=round((1+1.2*K2)*ticker1["Sell"],CV1) if K2<0.007 else round(1.007*ticker1["Sell"],CV1)
+                    pt2=round((1-1.2*J2)*position1[1].Price,CV1) if J2>0.0012 else round(0.9988*position1[1].Price,CV1)
+                    B1=n1 if round((V-1)*position1[0].Amount)<n1 else round((V-1)*position1[0].Amount,BV1)
+                    B2=n1 if round((V-1)*position1[1].Amount)<n1 else round((V-1)*position1[1].Amount,BV1)
+                    #查询订单
+                    orders=_C(exchanges[i].GetOrders)
+                    if len(orders)==0:
+                        if DR_M=='做多':
+                            if not S1:
+                                exchanges[i].SetDirection("buy")
+                                exchanges[i].Buy(add,B1)
+                                exchanges[i].SetDirection("closebuy")
+                                exchanges[i].Sell(pt,position1[0].Amount)
+                        if DR_M=='做空':  
+                            if not L1:
+                                exchanges[i].SetDirection("sell")
+                                exchanges[i].Sell(add2,B2)                         
+                                exchanges[i].SetDirection('closesell')
+                                exchanges[i].Buy(pt2,position1[1].Amount)
+                    if len(orders)==1:
+                        needle_protecting_records()
+                        if DR_M=='做多':
+                            orders=_C(exchanges[i].GetOrders)
+                            if orders[0]["Type"]==0:
+                                Log(currency1,'止盈多单成交')
+                                CancelPendingOrders()
+                                if Long1 or Long15:
+                                    Log(currency1,'单边上涨,该币种的空头对冲模块已经停止#FF0000')
+                                else:
+                                    short_add()
+                                LogProfit(float(walletbalance)+float(unrealizedProfit))
+                            if orders[0]["Type"]==1:
+                                Log(currency1,'补仓多单成交')
+                                CancelPendingOrders()
+                                short_close()
+                        if DR_M=='做空':
+                            orders=_C(exchanges[i].GetOrders)
+                            if orders[0]["Type"]==1:
+                                Log(currency1,'止盈空单成交')
+                                CancelPendingOrders()
+                                if Short1:
+                                    Log(currency1,'单边下跌,该币种的多头对冲模块已经停止#FF0000')
+                                else:
+                                    long_add()
+                                LogProfit(float(walletbalance)+float(unrealizedProfit))
+                            if orders[0]["Type"]==0:
+                                Log(currency1,'补仓空单成交')
+                                CancelPendingOrders()
+                                long_close()
+
+            
+                    
+            
+                
+def short_add():
+    exchanges[i].SetMarginLevel(M)
+    exchanges[i].SetContractType("swap")
+    currency1=_C(exchanges[i].GetCurrency)
+    ticker1=_C(exchanges[i].GetTicker)
+    position1=_C(exchanges[i].GetPosition)
+    if len(position1)==2 and position1[0]["Type"]==0 and position1[1]["Type"]==1:
+        TA2=(position1[1].Amount*ticker1["Last"])/M>init_Balance/3*bb*len(exchanges)
+        TB2=(position1[1].Amount*ticker1["Last"])/M>init_Balance/2*bb*len(exchanges)
+        TC2=(position1[1].Amount*ticker1["Last"])/M>init_Balance/1.5*bb*len(exchanges)
+        if fk:
+            if not TC2:
+                if TA2 and not TB2:
+                    if round(0.5*Z*(V-1)*position1[1].Amount)<n1:
+                        D1=n1
+                    else:
+                        D1=round(0.5*Z*(V-1)*position1[1].Amount,BV1)
+                    exchanges[i].SetDirection("sell")
+                    exchanges[i].Sell(-1,D1)
+                    Log(currency1,'空单补仓')
+                if TA2 and TB2:
+                    D1=n1
+                    exchanges[i].SetDirection("sell")
+                    exchanges[i].Sell(-1,D1)
+                    Log(currency1,'空单补仓')
+            else:
+                Log(currency1,'触发单币风控,该币种的空头对冲模块已经停止#FF0000')
+        else:
+            D1=n1 if round(Z*(V-1)*position1[1].Amount)<n1 else round(Z*(V-1)*position1[1].Amount,BV1)
+            exchanges[i].SetDirection("sell")
+            exchanges[i].Sell(-1,D1)
+            Log(currency1,'空单补仓')
+    
+def short_close():
+    exchanges[i].SetMarginLevel(M)
+    exchanges[i].SetContractType("swap")
+    currency1=_C(exchanges[i].GetCurrency)
+    ticker1=_C(exchanges[i].GetTicker)
+    position1=_C(exchanges[i].GetPosition)
+    if len(position1)==2 and position1[0]["Type"]==0 and position1[1]["Type"]==1:
+        if position1[1].Profit>fp*ticker1["Last"]*position1[1].Amount:
+            exchanges[i].SetDirection("closesell")
+            exchanges[i].Buy(-1,position1[1].Amount)
+            Log(currency1,'空单止盈')
+            LogProfit(float(walletbalance)+float(unrealizedProfit))
+            
+def long_add():   
+    global D
+    exchanges[i].SetMarginLevel(M)
+    exchanges[i].SetContractType("swap")
+    currency1=_C(exchanges[i].GetCurrency)
+    ticker1=_C(exchanges[i].GetTicker)
+    position1=_C(exchanges[i].GetPosition)
+    if len(position1)==2 and position1[0]["Type"]==0 and position1[1]["Type"]==1:
+        TA1=(position1[0].Amount*ticker1["Last"])/M>init_Balance/3*bb*len(exchanges)
+        TB1=(position1[0].Amount*ticker1["Last"])/M>init_Balance/2*bb*len(exchanges)
+        TC1=(position1[0].Amount*ticker1["Last"])/M>init_Balance/1.5*bb*len(exchanges)
+        if fk:
+            if not TC1:
+                if TA1 and not TB1:
+                    if round(0.5*Z*(V-1)*position1[0].Amount)<n1:
+                        D2=n1  
+                    else:
+                        D2=round(0.5*Z*(V-1)*position1[0].Amount,BV1)
+                    exchanges[i].SetDirection("buy")
+                    exchanges[i].Buy(-1,D2)
+                    Log(currency1,'多单补仓')
+                if TA1 and TB1:
+                    D2=n1
+                    exchanges[i].SetDirection("buy")
+                    exchanges[i].Buy(-1,D2)
+                    Log(currency1,'多单补仓')
+            else:
+                Log(currency1,'触发单币风控,该币种的多头对冲模块已经停止#FF0000')
+        else:
+            D2=n1 if round(Z*(V-1)*position1[0].Amount)<n1 else round(Z*(V-1)*position1[0].Amount,BV1)
+            exchanges[i].SetDirection("buy")
+            exchanges[i].Buy(-1,D2)
+            Log(currency1,'多单补仓')
+
+def long_close():
+    exchanges[i].SetMarginLevel(M)
+    exchanges[i].SetContractType("swap")
+    currency1=_C(exchanges[i].GetCurrency)
+    ticker1=_C(exchanges[i].GetTicker)
+    position1=_C(exchanges[i].GetPosition)
+    if len(position1)==2 and position1[0]["Type"]==0 and position1[1]["Type"]==1:
+        if position1[0].Profit>fp*ticker1["Last"]*position1[0].Amount:
+            exchanges[i].SetDirection("closebuy")
+            exchanges[i].Sell(-1,position1[0].Amount)
+            Log(currency1,'多单止盈')
+            LogProfit(float(walletbalance)+float(unrealizedProfit))
+    
+
+def needle_protecting_records(): #防插针函数进行时获取行情函数
+    #获取行情价格和k线图
+    ticker1=exchanges[i].GetTicker()
+    #获取一分钟k线
+    global a,a15,Long1,Short1,Long15,Short15,Red15,Green15
+    a=exchanges[i].GetRecords(PERIOD_M1)
+    a15=exchanges[i].GetRecords(PERIOD_M15)
+    if a and len(a)>20 and a15 and len(a15)>20:
+        ticker1=_C(exchanges[i].GetTicker)
+        #1min数据
+        close0= a[len(a) -1].Close
+        ema100=TA.EMA(a,100)
+        ema20=TA.EMA(a,20)
+        ema7=TA.EMA(a,7)
+        rsi = TA.RSI(a, 14)
+        #定义1min单边上涨和单边下跌
+        Long1= close0>ema20[-1] and ema7[-2]>ema20[-2]>ema100[-2] and ema7[-3]>ema20[-3]>ema100[-3] and ema7[-4]>ema20[-4]>ema100[-4] and ema20[-2]>ema20[-3]>ema20[-4] and ema100[-2]>ema100[-3]>ema100[-4]#单边上涨
+        Short1= close0<ema20[-1] and ema7[-2]<ema20[-2]<ema100[-2] and ema7[-3]<ema20[-3]<ema100[-3] and ema7[-4]<ema20[-4]<ema100[-4] and ema20[-2]<ema20[-3]<ema20[-4] and ema100[-2]<ema100[-3]<ema100[-4]#单边下跌
+        #15min数据
+        close0_15= a15[len(a15) -1].Close
+        open0_15= a15[len(a15) -1].Open
+        close1_15= a15[len(a15) -2].Close
+        open1_15= a15[len(a15) -2].Open
+        ema20_15=TA.EMA(a15,20)
+        ema5_15=TA.EMA(a15,5)
+        rsi_15 = TA.RSI(a15, 14)
+        #定义15min级别单边上涨和单边下跌
+        Long15=(close1_15-open1_15)/open1_15>0.003 and ticker1["Last"]>1.003*open0_15 and ticker1["Last"]>1.003*ema20_15[-1] and ema5_15[-2]>ema20_15[-2] and rsi_15>40
+        Short15=(close1_15-open1_15)/open1_15<-0.003 and ticker1["Last"]<0.997*open0_15 and ticker1["Last"]<0.997*ema20_15[-1] and ema5_15[-2]<ema20_15[-2] and rsi_15<40
+        Red15=ticker1["Last"]>open0_15 #15min出现阳线
+        Green15=ticker1["Last"]<open0_15 #15min出现阴线
+
+    
+def collecting():
+    global i
+    for i in range(len(exchanges)):
+        position1=_C(exchanges[i].GetPosition)
+        if len(position1)>0 and position1[0]["Type"]==0:
+            list_needle=[]
+            list_scale=[]
+            list_diefu=[]
+            list_ema_1=[]
+            list_ema_2=[]
+            list_ema_3=[]
+            for i in range(len(exchanges)):
+                exchanges[i].SetContractType('swap')
+                ticker1=_C(exchanges[i].GetTicker)
+                r=exchanges[i].GetRecords(PERIOD_M1)
+                EMA3=TA.EMA(r,3)
+                ticker1=_C(exchanges[i].GetTicker)
+                global N
+                N=position1[0].Amount*ticker1["Last"] #各个币种持仓价值
+                open_i=r[len(r)-1].Open #当根开盘价
+                nowtick=ticker1["Last"]
+                diefu=(nowtick-open_i)/open_i
+                list_needle.append(N)
+                list_diefu.append(diefu)
+                list_ema_1.append(EMA3[-1])
+                list_ema_2.append(EMA3[-2])
+                list_ema_3.append(EMA3[-3])
+            all_value=sum(list_needle)
+            for v in list_needle:
+                scale=v/all_value
+                list_scale.append(scale)
+            if len(list_scale)==len(list_diefu)==len(list_ema_1)==len(list_ema_2)==len(list_ema_3):
+                k=0
+                finnal_list=[]
+                finnal_EMA1=[]
+                finnal_EMA2=[]
+                finnal_EMA3=[]
+                for k in range(len(list_scale)):
+                    QU=list_scale[k]*list_diefu[k]
+                    EMA_S1=list_scale[k]*list_ema_1[k]
+                    EMA_S2=list_scale[k]*list_ema_2[k]
+                    EMA_S3=list_scale[k]*list_ema_3[k]
+                    finnal_list.append(QU)
+                    finnal_EMA1.append(EMA_S1)
+                    finnal_EMA2.append(EMA_S2)
+                    finnal_EMA3.append(EMA_S3)
+                global finnal_diefu,E1,E2,E3
+                finnal_diefu=sum(finnal_list)
+                E1=sum(finnal_EMA1)
+                E2=sum(finnal_EMA2)
+                E3=sum(finnal_EMA3)
+        
+        
+def protect():
+    global finnal_diefu
+    collecting()
+    if finnal_diefu<-0.003:
+        Log(list_currency,'波动异常,触发防插针系统1级')
+        trade_protect1()
+        while True:
+            Sleep(200)
+            collecting()
+            if E1>E2>E3:
+                Log(list_currency,'防插针系统1级已经关闭')
+                for i in range(len(exchanges)):
+                    CancelPendingOrders()
+                break
+            if finnal_diefu<-0.0035:
+                Log(list_currency,'波动异常,触发防插针系统2级')
+                trade_protect2()
+                while True:
+                    Sleep(200)
+                    collecting()
+                    if E1>E2>E3:
+                        Log(list_currency,'防插针系统2级已经关闭')
+                        break
+                    if finnal_diefu<-0.0045:
+                        Log(list_currency,'下跌加剧,触发防插针系统3级')
+                        trade_protect3()
+                        while True:
+                            Sleep(200)
+                            collecting()
+                            if E1>E2>E3:
+                                Log(list_currency,'防插针系统3级已经关闭')
+                                break
+                            if finnal_diefu<-0.005:
+                                Log(list_currency,'瀑布下跌,触发防插针系统4级#FF0000')
+                                trade_protect4()
+                                while True:
+                                    Sleep(200)
+                                    collecting()
+                                    if E1>E2>E3:
+                                        Log(list_currency,'行情走稳防插针系统4级已经关闭')
+                                        break
+                                    if finnal_diefu<-0.006:
+                                        Log(list_currency,'瀑布下跌,系统性风险可能已经降临,触发防插针系统5级#FF0000')
+                                        trade_protect5()
+                                        while True:
+                                            Sleep(200)
+                                            collecting()
+                                            if E1>E2>E3:
+                                                Log(list_currency,'行情走稳防插针系统5级已经关闭')
+                                                break
+                        
+def trade_protect1():
+    global i
+    for i in range(len(exchanges)):
+        exchanges[i].SetMarginLevel(M)
+        exchanges[i].SetContractType("swap")
+        currency1=exchanges[i].GetCurrency()
+        CancelPendingOrders()
+        accuracy()
+        ticker1=_C(exchanges[i].GetTicker)
+        position1=_C(exchanges[i].GetPosition)
+        account1=_C(exchanges[i].GetAccount)
+        if not no: 
+            if len(position1)==2 or (len(position1)==1 and position1[0]["Type"]==0): 
+                #多单模块
+                K=0.6*E+(0.0002*position1[0].Amount/n1) 
+                J=1.3*fp+(0.00003*position1[0].Amount/n1) 
+                Q1=round((1-1.4*K)*ticker1["Sell"],CV1) if 1.4*K<0.007 else round(0.993*ticker1["Sell"],CV1)
+                Q2=round((1+0.9*J)*position1[0].Price,CV1) if 0.9*J>0.001 else round(0.999*position1[0].Price,CV1)
+                Q3=n1 if round((V-1)*position1[0].Amount)<n1 else round((V-1)*position1[0].Amount,BV1)
+                #下单              
+                exchanges[i].SetDirection("buy")
+                exchanges[i].Buy(Q1,Q3)
+                exchanges[i].SetDirection("closebuy")
+                exchanges[i].Sell(Q2,position1[0].Amount)
+
+                
+def trade_protect2():
+    global i
+    for i in range(len(exchanges)):
+        exchanges[i].SetMarginLevel(M)
+        exchanges[i].SetContractType("swap")
+        currency1=exchanges[i].GetCurrency()
+        CancelPendingOrders()
+        accuracy()
+        ticker1=_C(exchanges[i].GetTicker)
+        position1=_C(exchanges[i].GetPosition)
+        account1=_C(exchanges[i].GetAccount)
+        if not no: 
+            if len(position1)==2 or (len(position1)==1 and position1[0]["Type"]==0): 
+                #多单模块
+                K=0.6*E+(0.0002*position1[0].Amount/n1) 
+                J=1.3*fp+(0.00003*position1[0].Amount/n1) 
+                Q1=round((1-1.7*K)*ticker1["Sell"],CV1) if 1.7*K<0.007 else round(0.993*ticker1["Sell"],CV1)
+                Q2=round((1+0.85*J)*position1[0].Price,CV1) if 0.85*J>0.001 else round(0.999*position1[0].Price,CV1)
+                Q3=n1 if round((V-1)*position1[0].Amount)<n1 else round((V-1)*position1[0].Amount,BV1)
+                #下单              
+                exchanges[i].SetDirection("buy")
+                exchanges[i].Buy(Q1,Q3)
+                exchanges[i].SetDirection("closebuy")
+                exchanges[i].Sell(Q2,position1[0].Amount)
+
+                
+                
+def trade_protect3():
+    global i
+    for i in range(len(exchanges)):
+        exchanges[i].SetMarginLevel(M)
+        exchanges[i].SetContractType("swap")
+        currency1=exchanges[i].GetCurrency()
+        CancelPendingOrders()
+        accuracy()
+        ticker1=_C(exchanges[i].GetTicker)
+        position1=_C(exchanges[i].GetPosition)
+        account1=_C(exchanges[i].GetAccount)
+        if not no: 
+            if len(position1)==2 or (len(position1)==1 and position1[0]["Type"]==0): 
+                #多单模块
+                K=0.6*E+(0.0002*position1[0].Amount/n1) 
+                J=1.3*fp+(0.00003*position1[0].Amount/n1) 
+                Q1=round((1-2*K)*ticker1["Sell"],CV1) if 2*K<0.007 else round(0.993*ticker1["Sell"],CV1)
+                Q2=round((1+0.8*J)*position1[0].Price,CV1) if 0.8*J>0.001 else round(0.999*position1[0].Price,CV1)
+                Q3=n1 if round((V-1)*position1[0].Amount)<n1 else round((V-1)*position1[0].Amount,BV1)
+                #下单              
+                exchanges[i].SetDirection("buy")
+                exchanges[i].Buy(Q1,Q3)
+                exchanges[i].SetDirection("closebuy")
+                exchanges[i].Sell(Q2,position1[0].Amount)
+
+                
+def trade_protect4():
+    global i
+    for i in range(len(exchanges)):
+        exchanges[i].SetMarginLevel(M)
+        exchanges[i].SetContractType("swap")
+        currency1=exchanges[i].GetCurrency()
+        CancelPendingOrders()
+        accuracy()
+        ticker1=_C(exchanges[i].GetTicker)
+        position1=_C(exchanges[i].GetPosition)
+        account1=_C(exchanges[i].GetAccount)
+        if not no: 
+            if len(position1)==2 or (len(position1)==1 and position1[0]["Type"]==0): 
+                #多单模块
+                K=0.6*E+(0.0002*position1[0].Amount/n1) 
+                J=1.3*fp+(0.00003*position1[0].Amount/n1) 
+                Q1=round((1-2.3*K)*ticker1["Sell"],CV1) if 2.3*K<0.007 else round(0.993*ticker1["Sell"],CV1)
+                Q2=round((1+0.8*J)*position1[0].Price,CV1) if 0.8*J>0.001 else round(0.999*position1[0].Price,CV1)
+                Q3=n1 if round((V-1)*position1[0].Amount)<n1 else round((V-1)*position1[0].Amount,BV1)
+                #下单              
+                exchanges[i].SetDirection("buy")
+                exchanges[i].Buy(Q1,Q3)
+                exchanges[i].SetDirection("closebuy")
+                exchanges[i].Sell(Q2,position1[0].Amount)
+
+              
+def trade_protect5():
+    global i 
+    for i in range(len(exchanges)):
+        exchanges[i].SetMarginLevel(M)
+        exchanges[i].SetContractType("swap")
+        currency1=exchanges[i].GetCurrency()
+        CancelPendingOrders()
+        accuracy()
+        ticker1=_C(exchanges[i].GetTicker)
+        position1=_C(exchanges[i].GetPosition)
+        account1=_C(exchanges[i].GetAccount)
+        if not no: 
+            if len(position1)==2 or (len(position1)==1 and position1[0]["Type"]==0): 
+                #多单模块
+                K=0.6*E+(0.0002*position1[0].Amount/n1) 
+                J=1.3*fp+(0.00003*position1[0].Amount/n1) 
+                Q1=round((1-2.6*K)*ticker1["Sell"],CV1) if 2.6*K<0.007 else round(0.993*ticker1["Sell"],CV1)
+                Q2=round((1+0.8*J)*position1[0].Price,CV1) if 0.8*J>0.001 else round(0.999*position1[0].Price,CV1)
+                Q3=n1 if round((V-1)*position1[0].Amount)<n1 else round((V-1)*position1[0].Amount,BV1)
+                #下单              
+                exchanges[i].SetDirection("buy")
+                exchanges[i].Buy(Q1,Q3)
+                exchanges[i].SetDirection("closebuy")
+                exchanges[i].Sell(Q2,position1[0].Amount)
+
+def stoploss():
+    if A:
+        account1=_C(exchange.GetAccount)
+        unrealizedProfit=account1["Info"]["assets"][1]["unrealizedProfit"] if len(account1["Info"]["assets"][1])>0 else 0 #USDT未实现盈亏
+        walletbalance=account1["Info"]["assets"][1]["crossWalletBalance"] if len(account1["Info"]["assets"][1])>0 else 0 #USDT钱包余额
+        if float(unrealizedProfit)<-0.15*float(walletbalance):
+            Log('请注意,账户浮亏已经达到钱包余额的15%@')
+            Log('系统自动停机1小时@')
+            Sleep(3600000)
+        if float(unrealizedProfit)<-0.25*float(walletbalance):
+            Log('请注意,账户浮亏已经达到钱包余额的25%@')
+            Log('系统自动停机1小时@')
+            Sleep(3600000)
+        if float(unrealizedProfit)<-0.4*float(walletbalance):
+            Log('请注意,账户浮亏已经达到钱包余额的40%@')
+            Log('系统自动停机1小时@')
+            Sleep(3600000)
+        if float(unrealizedProfit)<-stp*float(walletbalance):
+            Log('触及止损线,全仓止损')
+            for i in range(len(exchanges)):
+                exchanges[i].SetContractType("swap")
+                position1=_C(exchanges[i].GetPosition)
+                CancelPendingOrders()
+                if len(position1)==1:
+                    if position1[0]["Type"]==0:
+                        exchanges[i].SetDirection("closebuy")
+                        exchanges[i].Sell(-1,position1[0].Amount)
+                    if position1[0]["Type"]==1:
+                        exchanges[i].SetDirection("closesell")
+                        exchanges[i].Buy(-1,position1[0].Amount)
+                if len(position1)==2:
+                    if position1[0]["Type"]==0 and position1[1]["Type"]==1:
+                        exchanges[i].SetDirection("closebuy")
+                        exchanges[i].Sell(-1,position1[0].Amount)
+                        exchanges[i].SetDirection("closesell")
+                        exchanges[i].Buy(-1,position1[1].Amount)
+                    if position1[0]["Type"]==1 and position1[1]["Type"]==0:
+                        exchanges[i].SetDirection("closebuy")
+                        exchanges[i].Sell(-1,position1[1].Amount)
+                        exchanges[i].SetDirection("closesell")
+                        exchanges[i].Buy(-1,position1[0].Amount)
+            Log('您的账户已经全部止损@')
+            Sleep(100000000000000)
+            
+def Coverall():
+        account1=_C(exchange.GetAccount)
+        unrealizedProfit=account1["Info"]["assets"][1]["unrealizedProfit"] if len(account1["Info"]["assets"][1])>0 else 0 #USDT未实现盈亏
+        walletbalance=account1["Info"]["assets"][1]["crossWalletBalance"] if len(account1["Info"]["assets"][1])>0 else 0 #USDT钱包余额
+        for i in range(len(exchanges)):
+            exchanges[i].SetContractType("swap")
+            position1=_C(exchanges[i].GetPosition)
+            CancelPendingOrders()
+            if len(position1)==1:
+                    if position1[0]["Type"]==0:
+                        exchanges[i].SetDirection("closebuy")
+                        exchanges[i].Sell(-1,position1[0].Amount)
+                    if position1[0]["Type"]==1:
+                        exchanges[i].SetDirection("closesell")
+                        exchanges[i].Buy(-1,position1[0].Amount)
+            if len(position1)==2:
+                    if position1[0]["Type"]==0 and position1[1]["Type"]==1:
+                        exchanges[i].SetDirection("closebuy")
+                        exchanges[i].Sell(-1,position1[0].Amount)
+                        exchanges[i].SetDirection("closesell")
+                        exchanges[i].Buy(-1,position1[1].Amount)
+                    if position1[0]["Type"]==1 and position1[1]["Type"]==0:
+                        exchanges[i].SetDirection("closebuy")
+                        exchanges[i].Sell(-1,position1[1].Amount)
+                        exchanges[i].SetDirection("closesell")
+                        exchanges[i].Buy(-1,position1[0].Amount)
+            Log('您的账户已经全部清仓@')
+                                
+            
+            
+            
+            
+            
+def table():
+    #获取账户基本信息
+    exchange.SetContractType('swap')
+    account1=_C(exchange.GetAccount)
+    exchange.SetMarginLevel(M)
+    position1=_C(exchange.GetPosition)
+    #声明表格
+    #table1的内容
+    global walletbalance,unrealizedProfit
+    walletbalance=account1["Info"]["assets"][1]["crossWalletBalance"] if len(account1["Info"]["assets"][1])>0 else 0 #USDT钱包余额
+    unrealizedProfit=account1["Info"]["assets"][1]["unrealizedProfit"] if len(account1["Info"]["assets"][1])>0 else 0 #USDT未实现盈亏
+    maintMargin=account1["Info"]["assets"][1]["maintMargin"] if len(account1["Info"]["assets"][1])>0 else 0 #USDT已经使用的保证金
+    totalMarginBalance=account1["Info"]["assets"][1]["availableBalance"] if len(account1["Info"]["assets"][1])>0 else 0 #USDT保证金余额
+    level=M if len(position1)>0 else 0  #当前仓位杠杆倍数
+    pft=round((float(walletbalance)-float(INT)),3)
+    #table2内容
+    NOWTime = _D() #当前时间
+    NOWBS=float(walletbalance)
+    profit_ratio=((NOWBS-INT)/INT)*100
+    end_time=_D()
+    end_time = datetime.strptime(end_time, r"%Y-%m-%d %H:%M:%S")
+    diff = end_time-now_time
+    K=diff.seconds
+    rihua=86400*(profit_ratio/K) if K>0 else 0
+    yuehua=30*rihua if K>0 else 0 
+    nianhua=365*rihua if K>0 else 0
+    #tab3内容
+    jieshao1='✱Promise Quant明诺量化专注马丁类策略的研究,支持租用,账号托管,无限制并发合伙等多种合作模式#3299CC'
+    jieshao2='✱微信联系方式：15001733415#3299CC'
+    #tab4内容
+    T1='●本策略为带有极强风控的算法对冲马丁策略,融入趋势、对冲、防插针、自适应波动和自由止盈等功能,显著放大策略盈亏比,定价较高,仅对内部部分用户开放。'
+    #table5内容
+    dingjia1='●接受资管服务及咨询,5000u以上资金均可联系'
+    dingjia2='●预期日化收益,硬止损线等可由客户自行设置'
+    dingjia3='●自负盈亏,达到20%利润后计提20%业绩提成'
+    #两个表格的选项
+    tab1 = {
+            "type": "table", 
+            "title": "账户信息", 
+            "cols": ["初始资金","钱包余额" ,"保证金余额" ,"已用保证金" ,"未实现盈亏","当前杠杆","总利润","总收益率"], 
+            "rows": []
+        }
+    tabc= {
+            "type": "table", 
+            "title": "交易对信息", 
+            "cols": ["交易币种","多单数量","多单成本价","多单未实现盈亏","空单数量","空单成本价","空单未实现盈亏"], 
+            "rows": []
+        }
+        
+        
+        
+    tab2 = {
+            "type": "table", 
+            "title": "收益预期", 
+            "cols": ["程序开始运行时间","预期日化","预期月化(单利)","预期年化(单利)"],
+            "rows": []
+        }
+
+    tab3 = {
+            "type": "table", 
+            "title": "联系方式", 
+            "cols": ["联系方式"],
+            "rows": []
+        }
+    tab4 = {
+            "type": "table", 
+            "title": "策略介绍", 
+            "cols": ["策略介绍"],
+            "rows": []
+        }
+    tab5 = {
+            "type": "table", 
+            "title": "资管服务", 
+            "cols": ["资管服务"],
+            "rows": []
+        }
+    
+    #往表格里加内容
+    tab1["rows"].append([format(round(INT,3))+'U',format(round(float(walletbalance),3))+'U',format(round(float(totalMarginBalance),3))+'U', format(round(float(maintMargin),3))+'U'
+                             , format(round(float(unrealizedProfit),3))+'U',format(M),format(pft)+'U',format(round(profit_ratio,2))+'%'])
+    tab2["rows"].append([format(FSTTime),format(round(rihua,3))+'%',format(round(yuehua,3))+'%',format(round(nianhua,3))+'%'])
+    tab3["rows"].append([format(jieshao1)])
+    tab3["rows"].append([format(jieshao2)])
+    tab4["rows"].append([format(T1)])
+    tab5["rows"].append([format(dingjia1)])
+    tab5["rows"].append([format(dingjia2)])
+    tab5["rows"].append([format(dingjia3)])
+    #tabc内容
+    for i in range(len(exchanges)):
+        exchanges[i].SetContractType('swap')
+        position=_C(exchanges[i].GetPosition)
+        currency=_C(exchanges[i].GetCurrency)
+        if len(position)==0:
+            long_amount='无持仓'
+            long_price='无持仓'
+            long_pft='无持仓'
+            short_amount='无持仓'  
+            short_price='无持仓'
+            short_pft='无持仓'
+        if len(position)==1:
+            if position[0]["Type"]==0: #仅仅持有多单
+                long_amount=position[0].Amount  #多单持仓数量
+                long_price=position[0].Price #多单成本价格
+                long_pft=round(position[0].Profit,3) #多单未实现盈亏
+                short_amount='无持仓'  
+                short_price='无持仓'
+                short_pft='无持仓'
+            if position[0]["Type"]==1: #仅仅持有空单
+                short_amount=position[0].Amount  #多单持仓数量
+                short_price=position[0].Price #多单成本价格
+                short_pft=round(position[0].Profit,3) #多单未实现盈亏
+                long_amount='无持仓'  
+                long_price='无持仓'
+                long_pft='无持仓'
+        if len(position)==2:
+            long_amount=position[0].Amount  #多单持仓数量
+            long_price=position[0].Price #多单成本价格
+            long_pft=round(position[0].Profit,3) #多单未实现盈亏
+            short_amount=position[1].Amount  #空单持仓数量
+            short_price=position[1].Price  #多单成本价格
+            short_pft=round(position[1].Profit,3)  #空单成本价格
+        tabc["rows"].append([format(currency),format(long_amount),format(long_price),format(long_pft),format(short_amount),format(short_price),format(short_pft)])
+    
+    #打印广告栏
+    LogStatus( "`" + json.dumps(tab1) + "`\n" +"`" + json.dumps(tab2) + "`\n" +"`"+json.dumps(tabc)+ "`\n" +"`" +json.dumps(tab3)+ "`\n" +"`" +json.dumps(tab4)+ "`\n" +"`" +json.dumps(tab5) +"`")                
+                
+def main():
+    while True:
+        try:
+            cmd=GetCommand()
+            if cmd:
+                Coverall()
+                Sleep(100000000)
+            table()
+            global i,list_currency
+            i=0
+            list_currency=[]
+            for i in range(len(exchanges)):
+                exchanges[i].SetContractType('swap')
+                accuracy()
+                trade()
+                exchanges[i].SetContractType('swap')
+                currency1=_C(exchanges[i].GetCurrency)
+                list_currency.append(currency1)
+            protect()
+            if A:
+                stoploss()
+            Sleep(S)
+        except IndexError:
+            Log('出现列表元素错误，重试循环')
+            continue
+        except TypeError:
+            Log('服务器数据返回异常导致格式错误,重试循环')
+            continue
+        except NameError:
+            Log('函数变量异常,重试循环')
+            continue
+        
+       
+            
+
+            
